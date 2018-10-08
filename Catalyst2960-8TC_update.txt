@@ -1,0 +1,229 @@
+目標：
+工場出荷状態から設定を変更していないCatalystの、IOSのバージョンを上げる。
+・１．現状のIOSのバージョンを確認する。
+・２．現状のIOSをtftpサーバにバックアップする
+・３．現状のコンフィグをtftpサーバにバックアップする
+・４．現状のコンフィグをコピー＆ペーストでテキストファイルにする。
+・５．新バージョンのIOSイメージをtftpサーバからCatalystに転送する
+
+●０．Catalystに管理用IPアドレスを設定
+Switch#configure terminal
+Enter configuration commands, one per line.  End with CNTL/Z.
+Switch(config)#interface vlan 1
+Switch(config-if)#ip address 192.168.1.xxx 255.255.255.0
+
+●１．作業前に、ＩＯＳのバージョンを確認
+Switch#show version | include IOS
+Cisco IOS Software, C2960 Software (C2960-LANBASE-M), Version 12.2(35)SE5, RELEASE SOFTWARE (fc1)
+
+・flashメモリの中身
+Switch#dir flash:
+Directory of flash:/
+
+    2  drwx         512   Mar 1 1993 00:10:10 +00:00  c2960-lanbase-mz.122-35.SE5
+
+27998208 bytes total (19301888 bytes free)
+
+Switch#dir flash:/c2960-lanbase-mz.122-35.SE5/
+Directory of flash:/c2960-lanbase-mz.122-35.SE5/
+
+    3  drwx        5120   Mar 1 1993 00:07:09 +00:00  html
+  619  -rwx     5222733   Mar 1 1993 00:08:36 +00:00  c2960-lanbase-mz.122-35.SE5.bin
+  620  -rwx         476   Mar 1 1993 00:10:10 +00:00  info
+
+27998208 bytes total (19301888 bytes free)
+
+
+●２．現状のIOSをtarファイルにし、tftpサーバにアップロードする
+Switch#archive upload-sw c2960-lanbase-mz.122-35.SE5.tar
+System software to be uploaded:
+System Type:             0x00000000
+archiving c2960-lanbase-mz.122-35.SE5 (directory)
+archiving c2960-lanbase-mz.122-35.SE5/html (directory)
+～中略～
+archiving c2960-lanbase-mz.122-35.SE5/html/images/131075.gif (1223 bytes)
+archiving c2960-lanbase-mz.122-35.SE5/c2960-lanbase-mz.122-35.SE5.bin (5222733 bytes)
+archiving c2960-lanbase-mz.122-35.SE5/info (476 bytes)
+archiving c2960-lanbase-mz.122-35.SE5 (directory)
+archiving c2960-lanbase-mz.122-35.SE5/info (478 bytes)
+archiving info (106 bytes)
+Switch#
+Switch#dir flash:
+Directory of flash:/
+
+    3  -rwx         729   Mar 1 1993 18:14:18 +00:00  config.text
+    4  -rwx           5   Mar 1 1993 18:14:18 +00:00  private-config.text
+    5  drwx         512   Mar 1 1993 00:10:10 +00:00  c2960-lanbase-mz.122-35.SE5
+  625  -rwx     8612864   Mar 1 1993 00:06:17 +00:00  c2960-lanbase-mz.122-35.SE5.tar
+
+27998208 bytes total (10616832 bytes free)
+
+Switch#copy flash: tftp:
+Source filename []? c2960-lanbase-mz.122-35.SE5.tar
+Address or name of remote host []? 192.168.1.78
+Destination filename [c2960-lanbase-mz.122-35.SE5.tar]?
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+8612864 bytes copied in 25.400 secs (339089 bytes/sec)
+
+●３．ＴＦＴＰサーバに工場出荷状態のランニングコンフィグを転送
+Switch#copy running-config tftp:
+Address or name of remote host []? 192.168.1.xxx
+Destination filename [switch-confg]?
+!!
+729 bytes copied in 0.210 secs (3471 bytes/sec)
+
+●４．工場出荷状態のランニングコンフィグをテキストファイルにコピペ
+Switch#terminal length 0
+Switch#show running-config
+Building configuration...
+
+Current configuration : 704 bytes
+!
+version 12.2
+no service pad
+service timestamps debug uptime
+service timestamps log uptime
+no service password-encryption
+!
+hostname Switch
+!
+!
+no aaa new-model
+system mtu routing 1500
+ip subnet-zero
+!
+!
+!
+!
+no file verify auto
+spanning-tree mode pvst
+spanning-tree extend system-id
+!
+vlan internal allocation policy ascending
+!
+interface FastEthernet0/1
+!
+interface FastEthernet0/2
+!
+interface FastEthernet0/3
+!
+interface FastEthernet0/4
+!
+interface FastEthernet0/5
+!
+interface FastEthernet0/6
+!
+interface FastEthernet0/7
+!
+interface FastEthernet0/8
+!
+interface GigabitEthernet0/1
+!
+interface Vlan1
+ no ip address
+ no ip route-cache
+!
+ip http server
+!
+control-plane
+!
+!
+line con 0
+line vty 5 15
+!
+end
+
+●５．バージョンの新しいＩＳＯをＴＦＴＰでCatalystに送信する
+Switch#archive download-sw /reload /safe tftp://192.168.1.78/c2960-lanbase-tar.122-46.SE.tar
+Loading c2960-lanbase-tar.122-46.SE.tar from 192.168.1.78 (via Vlan1): !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[OK - 10270720 bytes]
+
+Loading c2960-lanbase-tar.122-46.SE.tar from 192.168.1.78 (via Vlan1): !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+examining image...
+extracting info (104 bytes)
+extracting c2960-lanbase-mz.122-46.SE/info (518 bytes)
+extracting info (104 bytes)
+
+Stacking Version Number: 1.40
+
+System Type:             0x00000000
+  Ios Image File Size:   0x00654200
+  Total Image File Size: 0x009CBA00
+  Minimum Dram required: 0x04000000
+  Image Suffix:          lanbase-122-46.SE
+  Image Directory:       c2960-lanbase-mz.122-46.SE
+  Image Name:            c2960-lanbase-mz.122-46.SE.bin
+  Image Feature:         LAYER_2|MIN_DRAM_MEG=64
+
+Old image for switch 1: flash:c2960-lanbase-mz.122-35.SE5
+  Old image will be deleted after download.
+
+Extracting images from archive into flash...
+c2960-lanbase-mz.122-46.SE/ (directory)
+c2960-lanbase-mz.122-46.SE/html/ (directory)
+extracting c2960-lanbase-mz.122-46.SE/html/toolbar.js (6383 bytes)
+～中略～
+extracting c2960-lanbase-mz.122-46.SE/html/images/normal.gif (1099 bytes)
+extracting c2960-lanbase-mz.122-46.SE/c2960-lanbase-mz.122-46.SE.bin (6630692 bytes)
+extracting c2960-lanbase-mz.122-46.SE/info (518 bytes)
+extracting info (104 bytes)
+
+Installing (renaming): `flash:update/c2960-lanbase-mz.122-46.SE' ->
+                                       `flash:c2960-lanbase-mz.122-46.SE'
+New software image installed in flash:c2960-lanbase-mz.122-46.SE
+
+
+Removing old image: flash:c2960-lanbase-mz.122-35.SE5
+
+All software images installed.
+Switch#dir flash:
+Directory of flash:/
+
+    3  -rwx         729   Mar 1 1993 18:14:18 +00:00  config.text
+    4  -rwx           5   Mar 1 1993 18:14:18 +00:00  private-config.text
+  624  drwx         512   Mar 1 1993 01:32:08 +00:00  c2960-lanbase-mz.122-46.SE
+
+27998208 bytes total (17637376 bytes free)
+
+再起動は：
+Switch#reload
+Proceed with reload? [confirm]
+
+●最終確認
+Switch#show version | include IOS
+Cisco IOS Software, C2960 Software (C2960-LANBASE-M), Version 12.2(46)SE, RELEASE SOFTWARE (fc2)
+
+Switch#dir flash:
+Directory of flash:/
+
+    2  -rwx         729   Mar 1 1993 18:14:18 +00:00  config.text
+    3  -rwx           5   Mar 1 1993 18:14:18 +00:00  private-config.text
+    4  drwx         512   Mar 1 1993 01:32:08 +00:00  c2960-lanbase-mz.122-46.SE
+
+27998208 bytes total (17637376 bytes free)
+
+Switch#delete flash:
+Delete filename []? config.text
+Delete flash:config.text? [confirm]
+Switch#delete flash:
+Delete filename []? private-config.text
+Delete flash:private-config.text? [confirm]
+Switch#dir flash:
+Directory of flash:/
+
+    4  drwx         512   Mar 1 1993 01:32:08 +00:00  c2960-lanbase-mz.122-46.SE
+
+27998208 bytes total (17639936 bytes free)
+
+Switch#dir flash:/c2960-lanbase-mz.122-46.SE/
+Directory of flash:/c2960-lanbase-mz.122-46.SE/
+
+    5  drwx        5632   Mar 1 1993 01:27:13 +00:00  html
+  549  -rwx     6630692   Mar 1 1993 01:28:39 +00:00  c2960-lanbase-mz.122-46.SE.bin
+  550  -rwx         518   Mar 1 1993 01:32:07 +00:00  info
+
+27998208 bytes total (17637376 bytes free)
+
+Switch#reload
+
+
